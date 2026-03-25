@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Code Companion Prototype</title>
+    
+    <!-- Markdown Parser & Syntax Highlighter to make AI output look amazing -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/vs2015.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+
+    <style>
+        :root {
+            --bg-dark: #1e1e1e;
+            --bg-panel: #252526;
+            --bg-input: #3c3c3c;
+            --text-main: #d4d4d4;
+            --accent: #0e75b6;
+            --accent-hover: #118ad6;
+            --border: #333333;
+            --error: #f44336;
+            --success: #4caf50;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header / Navbar */
+        header {
+            background-color: #333333;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #000;
+        }
+
+        header h1 { font-size: 1.2rem; display: flex; align-items: center; gap: 10px; }
+        
+        button {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: 0.2s;
+        }
+
+        button:hover { background-color: var(--accent-hover); }
+        button:disabled { background-color: #555; cursor: not-allowed; }
+
+        .btn-outline {
+            background-color: transparent;
+            border: 1px solid var(--accent);
+            color: var(--accent);
+        }
+        .btn-outline:hover { background-color: rgba(14, 117, 182, 0.1); }
+
+        /* Main Workspace Layout */
+        .workspace {
+            display: flex;
+            flex: 1;
+            height: calc(100vh - 50px);
+        }
+
+        /* Left side: Code Editor */
+        .editor-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border);
+        }
+
+        .panel-header {
+            background-color: var(--bg-panel);
+            padding: 10px;
+            font-size: 0.9rem;
+            border-bottom: 1px solid var(--border);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #888;
+        }
+
+        textarea {
+            flex: 1;
+            background-color: var(--bg-dark);
+            color: #dcdcaa; /* VSCode JS yellow-ish */
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 15px;
+            padding: 20px;
+            border: none;
+            resize: none;
+            outline: none;
+            line-height: 1.5;
+        }
+
+        /* Right side: AI Sidebar */
+        .sidebar {
+            width: 450px;
+            background-color: var(--bg-panel);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            padding: 15px;
+            border-bottom: 1px solid var(--border);
+            flex-wrap: wrap;
+        }
+
+        .action-buttons button { flex: 1; font-size: 0.9rem; }
+
+        .chat-output {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        /* Markdown styling for AI output */
+        .chat-output pre {
+            background-color: #000 !important;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: 10px 0;
+            border: 1px solid var(--border);
+        }
+
+        .chat-output p { margin-bottom: 10px; }
+        .chat-output code { font-family: 'Consolas', monospace; }
+
+        /* Loading Spinner */
+        .loader {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        .system-msg { color: #888; font-style: italic; text-align: center; margin-top: 50px;}
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>🤖 AI Code Companion <span>(Local Webview)</span></h1>
+        <div>
+            <span id="key-status" style="margin-right: 15px; font-size: 12px; color: var(--error);">🔴 API Key Missing</span>
+            <button id="set-key-btn" class="btn-outline">🔑 Set API Key</button>
+        </div>
+    </header>
+
+    <div class="workspace">
+        <!-- Text Editor -->
+        <div class="editor-container">
+            <div class="panel-header">📝 editor.js</div>
+            <textarea id="code-input" spellcheck="false">// Paste your broken or messy code here...
+
+function calculateTotal(items) {
+  var total = 0;
+  for(var i=0; i<items.length; i++){
+    total = total + items[i].price;
+  }
+  return total;
+}
+</textarea>
+        </div>
+
+        <!-- AI Assistant Sidebar -->
+        <div class="sidebar">
+            <div class="panel-header">✨ AI Assistant</div>
+            
+            <div class="action-buttons">
+                <button onclick="analyzeCode('bugs')">🐛 Find Bugs</button>
+                <button onclick="analyzeCode('refactor')">🔨 Refactor</button>
+                <button onclick="analyzeCode('docs')">📚 Write Docs</button>
+            </div>
+
+            <div id="chat-output" class="chat-output">
+                <div class="system-msg">Ready to assist. Paste your code and select an action above.</div>
+            </div>
+            <div id="loader" class="loader" style="margin-bottom: 20px;"></div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Markdown Syntax Highlighting
+        marked.setOptions({
+            highlight: function(code, lang) {
+                const language = hljs.getLanguage(lang) ? lang : 'plaintext';
+                return hljs.highlight(code, { language }).value;
+            }
+        });
+
+        // UI Elements
+        const chatOutput = document.getElementById('chat-output');
+        const codeInput = document.getElementById('code-input');
+        const loader = document.getElementById('loader');
+        const keyStatus = document.getElementById('key-status');
+        
+        // System Prompts based on the button clicked
+        const prompts = {
+            bugs: "You are an expert debugger. Analyze the following code. Point out any logic errors, security flaws, or bugs. Then provide the corrected code.",
+            refactor: "You are a Senior Software Engineer. Refactor the following code to make it more modern, readable, and efficient (e.g., use ES6+ features). Explain briefly what you changed.",
+            docs: "Write comprehensive JSDoc (or standard docstring) comments for the following code. Explain the parameters, return types, and what the function does. Return the fully commented code."
+        };
+
+        // Manage OpenAI API Key securely in local storage
+        function checkApiKey() {
+            const key = localStorage.getItem('openai_api_key');
+            if (key) {
+                keyStatus.textContent = "🟢 API Key Saved";
+                keyStatus.style.color = "var(--success)";
+            } else {
+                keyStatus.textContent = "🔴 API Key Missing";
+                keyStatus.style.color = "var(--error)";
+            }
+        }
+
+        document.getElementById('set-key-btn').addEventListener('click', () => {
+            const currentKey = localStorage.getItem('openai_api_key') || '';
+            const key = prompt("Enter your OpenAI API Key (starts with sk-...):\n\nNote: Your key is only saved locally in your browser.", currentKey);
+            if (key !== null) {
+                localStorage.setItem('openai_api_key', key.trim());
+                checkApiKey();
+            }
+        });
+
+        // The Main AI Fetch Function
+        async function analyzeCode(action) {
+            const apiKey = localStorage.getItem('openai_api_key');
+            const code = codeInput.value.trim();
+
+            if (!apiKey) {
+                alert("Please set your OpenAI API key first!");
+                return;
+            }
+
+            if (!code) {
+                alert("Please write or paste some code in the editor!");
+                return;
+            }
+
+            // Update UI
+            chatOutput.innerHTML = '';
+            loader.style.display = 'block';
+            disableButtons(true);
+
+            try {
+                // Call OpenAI API
+                const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: "gpt-3.5-turbo", // You can change to gpt-4 or gpt-4o-mini
+                        messages: [
+                            { role: "system", content: prompts[action] },
+                            { role: "user", content: "Here is the code:\n\n" + code }
+                        ],
+                        temperature: 0.2 // Low temp for more deterministic code outputs
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.error) throw new Error(data.error.message);
+
+                // Parse the markdown and inject it
+                const aiResponseText = data.choices[0].message.content;
+                chatOutput.innerHTML = marked.parse(aiResponseText);
+
+            } catch (error) {
+                chatOutput.innerHTML = `<p style="color: var(--error);"><b>Error:</b> ${error.message}</p>`;
+            } finally {
+                loader.style.display = 'none';
+                disableButtons(false);
+            }
+        }
+
+        function disableButtons(disabled) {
+            document.querySelectorAll('.action-buttons button').forEach(btn => {
+                btn.disabled = disabled;
+            });
+        }
+
+        // Run on load
+        checkApiKey();
+    </script>
+</body>
+</html>
